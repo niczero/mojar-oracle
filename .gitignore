@@ -1,0 +1,9 @@
+*.old
+*.tmp
+.session
+blib/
+dep/
+Makefile
+MYMETA.*
+nytprof.out
+pm_to_blib
