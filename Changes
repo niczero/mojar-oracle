@@ -1,2 +1,5 @@
+0.011 2016-03-23
+  - Added cnf file support (Connector).
+
 0.001 2014-05-20
-  * Forked, text subst, quick edit of text (Connector).
+  - Forked, text subst, quick edit of text (Connector).

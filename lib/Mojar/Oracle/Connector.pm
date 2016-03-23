@@ -2,13 +2,16 @@ package Mojar::Oracle::Connector;
 use DBI 1.4.3;
 use Mojo::Base 'DBI';
 
+our $VERSION = 0.011;
+
 # Register subclass structure
 __PACKAGE__->init_rootclass;
 
-our $VERSION = 0.001;
-
+use Carp 'croak';
 use File::Spec::Functions 'catfile';
 use Mojar::ClassShare 'have';
+use Mojar::Config::Ini;
+use Mojo::Util 'slurp';
 
 sub import {
   my ($pkg, %param) = @_;
@@ -88,10 +91,6 @@ has 'schema';  # eg test
 has 'user';
 has 'password';
 
-# Private function
-
-sub croak { require Carp; goto &Carp::croak; }
-
 # Public methods
 
 sub new {
@@ -129,13 +128,14 @@ sub dsn {
     $cnf .= '.cnf' unless $cnf =~ /\.cnf$/;
     $cnf = catfile $param->cnfdir, $cnf if ! -r $cnf and defined $param->cnfdir;
     croak "Failed to find/read .cnf file ($cnf)" unless -f $cnf and -r $cnf;
-
-    #TODO: read content of .cnf
-#    $cnf_txt = ';mysql_read_default_file='. $cnf;
-#    $cnf_txt .= ';mysql_read_default_group='. $param->cnfgroup
-#      if defined $param->cnfgroup;
+    my $config = Mojar::Config::Ini->load($cnf);
+    my $group = $param->cnfgroup // 'client';
+    $param->{$_} = $param{$_} // $config->{$group}{$_} || $param->{$_}
+      for qw(host sid user password schema);
   }
-#TODO: Check have HOST and one of SID INSTANCE_NAME SERVER SERVICE_NAME
+  croak 'Require HOST and one of SID INSTANCE_NAME SERVER SERVICE_NAME'
+    unless $param->host and $param->sid || $param->instance_name
+        || $param->server || $param->service_name;
 
   # DBD params
   # Only set private_config if it would have useful values
@@ -171,12 +171,9 @@ sub dsn_to_dump {
 package Mojar::Oracle::Connector::db;
 @Mojar::Oracle::Connector::db::ISA = 'DBI::db';
 
+use Carp 'croak';
 use Mojar::Util 'lc_keys';
 use Scalar::Util 'looks_like_number';
-
-# Private functions
-
-sub croak { require Carp; goto &Carp::croak; }
 
 our $_as_hash = { Slice => {} };
 sub as_hash { $_as_hash }
@@ -310,29 +307,27 @@ sub selectall_arrayref_hashrefs {
   return $self->selectall_arrayref($sql, $opts, @args);
 }
 
-#sub processes {
-#  my $p = shift->selectall_arrayref_hashrefs(q{SHOW FULL PROCESSLIST});
-#  @$p = map lc_keys($_), @$p;
-#  return $p;
-#}
-#
-#sub engines {
-#  my ($self) = @_;
-#
-#  my $engines = {};
-#  my $e = $self->selectall_arrayref(q{SHOW ENGINES});
-#  for (@$e) {
-#    if ($_->[1] eq 'DEFAULT') {
-#      $engines->{default} = lc $_->[0];
-#      $engines->{lc $_->[0]} = 1;
-#    }
-#    else {
-#      $engines->{lc $_->[0]} = $_->[1] eq 'YES' ? 1 : 0;
-#    }
-#  }
-#  return $engines;
-#}
-#
+sub processes {
+  my $p = shift->selectall_arrayref_hashrefs(
+q{SELECT
+  sess.process,
+  sess.status,
+  sess.username,
+  sess.schemaname,
+  sql.sql_text
+FROM
+  v$session sess,
+  v$sql sql
+WHERE
+  sql.sql_id(+) = sess.sql_id
+  AND sess.type = 'USER'}
+  );
+  @$p = map lc_keys($_), @$p;
+  return $p;
+}
+
+sub engines { undef }
+
 #sub statistics {
 #  my ($self) = @_;
 #
@@ -368,39 +363,8 @@ q{SHOW INDEXES FROM %s IN %s}, $table, $schema
 #  return $s;
 #}
 
-#sub engine_status {
-#  my ($self, $engine) = @_;
-#  $engine //= 'InnoDB';
-#
-#  my ($raw) = $self->selectrow_array(
-#q{SHOW INNODB STATUS}
-#  );
-#
-#  my ($title, $buffer) = ('', '');
-#  my $status = {};
-#  for (split /^/, $raw) {
-#    if (/^\-+$/ and length $buffer) {
-#      # Finish previous record
-#      $status->{$title} = $buffer;
-#      $title = $buffer = '';
-#    }
-#    elsif (/^-+$/) {
-#      # Start new record
-#    }
-#    elsif (not length $title) {
-#      chomp;
-#      $title = lc $_;
-#      $title =~ s/\s/_/g;
-#      $title =~ s/\W//g;
-#    }
-#    else {
-#      $buffer .= $_;
-#    }
-#    # Ignore final record
-#  }
-#  return $status;
-#}
-#
+sub engine_status { undef }
+
 #sub table_space {
 #  my ($self, $schema, $table) = @_;
 #  my $space;
@@ -432,77 +396,6 @@ q{SHOW INDEXES FROM %s IN %s}, $table, $schema
 #    $days, $format
 #  );
 #  return $date;
-#}
-
-# Private method
-
-#sub _var {
-#  my ($self, $scope) = (shift, shift);
-#  $scope //= 'SESSION';
-#
-#  unless (@_) {
-#    # All vars
-#    my $v = $self->selectall_arrayref(qq{SHOW $scope VARIABLES});
-#    return { map @$_, @$v };
-#  }
-#
-#  my $var = shift;
-#  unless (@_) {
-#    # Getter
-#    my ($value) = $self->selectrow_array(sprintf
-#q{SELECT @@%s.%s}, $scope, $var);
-#    return $value;
-#  }
-#
-#  # Setter
-#  my $value = shift;
-#  my ($old, $new);
-#  eval {
-#    ($old) = $self->selectrow_array(sprintf
-#q{SELECT @@%s.%s}, $scope, $var);
-#    $value = "'$value'" unless looks_like_number $value;
-#    $self->do(qq{SET $scope $var = $value});
-#    ($new) = $self->selectrow_array(sprintf
-#q{SELECT @@%s.%s}, $scope, $var);
-#    1;
-#  }
-#  or do {
-#    my $e = $@ // '';
-#    croak "Failed to set var ($var)\n$e";
-#  };
-#  return wantarray ? ($old, $new) : $self;
-#}
-
-#TODO: clean up this ancient code
-#sub insert_hash {
-#  my ($self, $schema, $table, $field_map) = @_;
-#  my @fields = keys %$field_map;
-#  my @values = values %$field_map;
-#  $self->do(sprintf(
-#q{INSERT INTO %s.%s (%s) VALUES (%s)},
-#      $schema,
-#      $table,
-#      join(q{,}, @fields),
-#      join(q{,}, '?' x @fields)),
-#    undef,
-#    @values
-#  );
-#}
-
-#TODO: clean up this ancient code
-#sub search_hash {
-#  my ($self, $schema, $table, $field_map, @columns) = @_;
-#  my @fields = keys %$field_map;
-#  my @values = values %$field_map;
-#  my $wanted = scalar(@columns) ? join q{, }, @columns : q{*};
-#  my $where = '';
-#  $where = q{WHERE }. join q{ AND }, map '$_ = ?', @fields if @fields;
-#  $self->selectall_arrayref(sprintf(
-#q{SELECT %s FROM %s.%s %s},
-#    $wanted, $schema, $table, $where),
-#    undef,
-#    @values
-#  );
 #}
 
 # ============
