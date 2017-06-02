@@ -1,5 +1,9 @@
+0.021 2017-06-02
+  - Update to use Mojo::File.
+  - Add support for TravisCI.
+
 0.011 2016-03-23
-  - Added cnf file support (Connector).
+  - Add cnf file support (Connector).
 
 0.001 2014-05-20
-  - Forked, text subst, quick edit of text (Connector).
+  - Fork, text subst, quick edit of text (Connector).

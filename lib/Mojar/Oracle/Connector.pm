@@ -2,7 +2,7 @@ package Mojar::Oracle::Connector;
 use DBI 1.4.3;
 use Mojo::Base 'DBI';
 
-our $VERSION = 0.011;
+our $VERSION = 0.021;
 
 # Register subclass structure
 __PACKAGE__->init_rootclass;
@@ -11,7 +11,6 @@ use Carp 'croak';
 use File::Spec::Functions 'catfile';
 use Mojar::ClassShare 'have';
 use Mojar::Config::Ini;
-use Mojo::Util 'slurp';
 
 sub import {
   my ($pkg, %param) = @_;
@@ -502,16 +501,17 @@ constructor.
 
 =head2 C<connect>
 
- $dbh1 = Mojar::Oracle::Connector->connect(
-   'DBI:Oracle:test;host=localhost', 'admin', 's3cr3t', {}
- );
- $dbh2 = Mojar::Oracle::Connector->connect(
-   schema => 'test',
-   host => 'localhost',
-   user => 'admin',
-   password => 's3cr3t'
- );
- $dbh3 = Mojar::Oracle::Connector->connect;
+  $dbh1 = Mojar::Oracle::Connector->connect(
+    'DBI:Oracle:sid=test;host=localhost', 'admin', 's3cr3t', {}
+  );
+  $dbh2 = Mojar::Oracle::Connector->connect(
+    schema => 'test',
+    host => 'localhost',
+    sid => 'INVENTORY',
+    user => 'admin',
+    password => 's3cr3t'
+  );
+  $dbh3 = Mojar::Oracle::Connector->connect;
 
 Constructor for a connection (db handle).  If the first element passed has
 prefix C<DBI:> then it is a DSN string (the traditional route) and so is passed
@@ -647,13 +647,11 @@ but excluding real tables.
 
 =head1 SUPPORT
 
+See L<Mojar/"SUPPORT">.
+
 =head2 Homepage
 
 L<http://niczero.github.com/mojar-oracle>
-
-=head2 Wiki
-
-L<http://github.com/niczero/mojar-oracle/wiki>
 
 =head1 RATIONALE
 
@@ -664,11 +662,11 @@ connections.  The two will stay separate because of the many differences
 
 =head1 SEE ALSO
 
-L<DBD::Oracle>, L<DBIx::Custom>, L<DBIx::Connector>, L<DBI>.
+L<DBI>, L<DBD::Oracle>, L<DBIx::Custom>, L<DBIx::Connector>.
 
 =head1 COPYRIGHT AND LICENCE
 
-Copyright (C) 2002--2014, Nic Sandfield.
+Copyright (C) 2002--2017, Nic Sandfield.
 
 This program is free software, you can redistribute it and/or modify it under
 the terms of the Artistic License version 2.0.

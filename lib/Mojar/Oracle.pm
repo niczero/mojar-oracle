@@ -1,7 +1,7 @@
 package Mojar::Oracle;
 use Mojo::Base -strict;
 
-our $VERSION = 0.011;
+our $VERSION = 0.021;
 
 1;
 __END__
